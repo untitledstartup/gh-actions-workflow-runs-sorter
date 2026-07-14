@@ -26,7 +26,37 @@ func ReturnWorkflowRuns(branchName string, ctx context.Context, client *github.C
         },
     }
 
-    runs, res, err := client.Actions.ListWorkflowRunsByFileName(ctx, owner, repo, workflowFile, opts)
+    var runs *github.WorkflowRuns
+    var res *github.Response
+    var err error
+
+    // Retry transient failures (transport errors, 5xx) — a single GitHub API
+    // blip here otherwise aborts the whole shouldExecute decision.
+    for attempt := 1; attempt <= maxAttempts; attempt++ {
+
+        runs, res, err = client.Actions.ListWorkflowRunsByFileName(ctx, owner, repo, workflowFile, opts)
+
+        if !retryableAPIFailure(res, err) {
+            break
+        }
+
+        log.WithFields(log.Fields{
+            "attempt":      attempt,
+            "maxAttempts":  maxAttempts,
+            "repo":         repo,
+            "owner":        owner,
+            "workflowFile": workflowFile,
+        }).Warn("Transient GitHub API failure listing workflow runs ...")
+
+        if attempt < maxAttempts {
+            sleepBetweenRetries(ctx, attempt)
+        }
+    }
+
+    // transport error on every attempt — no HTTP response to inspect
+    if res == nil {
+        return nil, err
+    }
 
     if res.StatusCode == 404 {
 

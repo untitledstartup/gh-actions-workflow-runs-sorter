@@ -18,7 +18,37 @@ func ReturnWorkflowRunStatus(ctx context.Context, client *github.Client, owner s
         "workflowRunId": workflowRunId,
     }).Info("Calling for a previous workflow RunId...")
 
-    run, res, err := client.Actions.GetWorkflowRunByID(ctx, owner, repo, int64(workflowRunId))
+    var run *github.WorkflowRun
+    var res *github.Response
+    var err error
+
+    // Retry transient failures (transport errors, 5xx) — same policy as
+    // ReturnWorkflowRuns, and guards the nil-response dereference below.
+    for attempt := 1; attempt <= maxAttempts; attempt++ {
+
+        run, res, err = client.Actions.GetWorkflowRunByID(ctx, owner, repo, int64(workflowRunId))
+
+        if !retryableAPIFailure(res, err) {
+            break
+        }
+
+        log.WithFields(log.Fields{
+            "attempt":       attempt,
+            "maxAttempts":   maxAttempts,
+            "repo":          repo,
+            "owner":         owner,
+            "workflowRunId": workflowRunId,
+        }).Warn("Transient GitHub API failure fetching workflow run ...")
+
+        if attempt < maxAttempts {
+            sleepBetweenRetries(ctx, attempt)
+        }
+    }
+
+    // transport error on every attempt — no HTTP response to inspect
+    if res == nil {
+        return "", &github.Timestamp{time.Time{}}, err
+    }
 
     if res.StatusCode == 404 {
 

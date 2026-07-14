@@ -219,6 +219,9 @@ func TestReturnWorkflowRunStatus(t *testing.T){
             // supress logrus
             log.SetOutput(ioutil.Discard)
 
+            // no backoff delay in tests
+            sleepBetweenRetries = func(context.Context, int) {}
+
             client, mux, _, teardown := Setup()
             defer teardown()
 
@@ -276,4 +279,59 @@ func TestReturnWorkflowRunStatus(t *testing.T){
         })
     }
 
+}
+
+func TestReturnWorkflowRunStatusRetriesOn5xx(t *testing.T) {
+
+    // supress logrus
+    log.SetOutput(ioutil.Discard)
+
+    // no backoff delay in tests
+    sleepBetweenRetries = func(context.Context, int) {}
+
+    client, mux, _, teardown := Setup()
+    defer teardown()
+
+    ctx := context.Background()
+
+    calls := 0
+
+    mux.HandleFunc("/repos/testowner/testrepo/actions/runs/1111111111", func(w http.ResponseWriter, r *http.Request) {
+
+        TestingMethod(t, r, "GET")
+
+        calls++
+
+        // fail with 503 twice, then succeed
+        if calls < 3 {
+            w.WriteHeader(http.StatusServiceUnavailable)
+            fmt.Fprint(w, `{}`)
+            return
+        }
+
+        w.WriteHeader(http.StatusOK)
+        fmt.Fprint(w, `{
+            "id": 1111111111,
+            "name": "Test Workflow",
+            "run_number": 1,
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2022-12-12T21:34:57Z",
+            "updated_at": "2022-12-12T21:47:06Z"
+        }`)
+    })
+
+    gotStatus, _, gotErr := ReturnWorkflowRunStatus(ctx, client, "testowner", "testrepo", 1111111111)
+
+    if gotErr != nil {
+        t.Errorf("ReturnWorkflowRunStatus() returned error '%v' - expected success after retries", gotErr)
+    }
+
+    if calls != 3 {
+        t.Errorf("expected 3 API calls (2 failures + 1 success) but got %d", calls)
+    }
+
+    if gotStatus != "completed" {
+        t.Errorf("expected status 'completed' but received '%s'", gotStatus)
+    }
 }
