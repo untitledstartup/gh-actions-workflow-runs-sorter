@@ -173,7 +173,7 @@ func TestReturnWorkflowRuns(t *testing.T){
             log.SetOutput(ioutil.Discard)
 
             // no backoff delay in tests
-            sleepBetweenRetries = func(int) {}
+            sleepBetweenRetries = func(context.Context, int) {}
 
             client, mux, _, teardown := Setup()
             defer teardown()
@@ -280,7 +280,7 @@ func TestReturnWorkflowRunsRetriesOn5xx(t *testing.T) {
     log.SetOutput(ioutil.Discard)
 
     // no backoff delay in tests
-    sleepBetweenRetries = func(int) {}
+    sleepBetweenRetries = func(context.Context, int) {}
 
     client, mux, _, teardown := Setup()
     defer teardown()
@@ -339,7 +339,7 @@ func TestReturnWorkflowRunsExhaustsRetriesOn5xx(t *testing.T) {
     log.SetOutput(ioutil.Discard)
 
     // no backoff delay in tests
-    sleepBetweenRetries = func(int) {}
+    sleepBetweenRetries = func(context.Context, int) {}
 
     client, mux, _, teardown := Setup()
     defer teardown()
@@ -379,7 +379,7 @@ func TestReturnWorkflowRunsDoesNotRetryOn404(t *testing.T) {
     log.SetOutput(ioutil.Discard)
 
     // no backoff delay in tests
-    sleepBetweenRetries = func(int) {}
+    sleepBetweenRetries = func(context.Context, int) {}
 
     client, mux, _, teardown := Setup()
     defer teardown()

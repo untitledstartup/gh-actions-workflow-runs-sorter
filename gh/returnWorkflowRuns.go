@@ -49,7 +49,7 @@ func ReturnWorkflowRuns(branchName string, ctx context.Context, client *github.C
         }).Warn("Transient GitHub API failure listing workflow runs ...")
 
         if attempt < maxAttempts {
-            sleepBetweenRetries(attempt)
+            sleepBetweenRetries(ctx, attempt)
         }
     }
 

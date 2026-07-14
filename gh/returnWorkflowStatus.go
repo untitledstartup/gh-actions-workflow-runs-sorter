@@ -41,7 +41,7 @@ func ReturnWorkflowRunStatus(ctx context.Context, client *github.Client, owner s
         }).Warn("Transient GitHub API failure fetching workflow run ...")
 
         if attempt < maxAttempts {
-            sleepBetweenRetries(attempt)
+            sleepBetweenRetries(ctx, attempt)
         }
     }
 

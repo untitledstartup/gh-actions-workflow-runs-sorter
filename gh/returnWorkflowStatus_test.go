@@ -220,7 +220,7 @@ func TestReturnWorkflowRunStatus(t *testing.T){
             log.SetOutput(ioutil.Discard)
 
             // no backoff delay in tests
-            sleepBetweenRetries = func(int) {}
+            sleepBetweenRetries = func(context.Context, int) {}
 
             client, mux, _, teardown := Setup()
             defer teardown()
@@ -287,7 +287,7 @@ func TestReturnWorkflowRunStatusRetriesOn5xx(t *testing.T) {
     log.SetOutput(ioutil.Discard)
 
     // no backoff delay in tests
-    sleepBetweenRetries = func(int) {}
+    sleepBetweenRetries = func(context.Context, int) {}
 
     client, mux, _, teardown := Setup()
     defer teardown()
