@@ -3,6 +3,7 @@ package main
 import (
     "flag"
     "fmt"
+    "os"
     "time"
 
     util "gh-actions-workflow-runs-sorter/util"
@@ -49,16 +50,16 @@ func main(){
         // get whether 3 parameters - to be used in the nex mode:
         shouldRunExecute, shouldWaitForPastRun, pastRunIdStr,  ShouldExecuteErr := util.ShouldExecute(runs, *runNumber, int(*workflowRunsToReturn))
 
-       // panic - crash hard if ShouldExectue errored out:
+       // fail with a clean error (non-zero exit, no stack trace) if ShouldExecute errored out:
        if ShouldExecuteErr != nil {
             log.WithFields(log.Fields{
                 "repo":         *repo,
                 "owner":        *owner,
                 "workflowFile": *workflowFile,
                 "workflowRunsToReturn": *workflowRunsToReturn,
-            }).Error(ShouldExecuteErr.Error())
+            }).Errorf("Failed to complete 'shouldExecute' mode with error %s", ShouldExecuteErr.Error())
 
-            panic(fmt.Sprintf("Failed to complete 'shouldExecute' mode with error %s", ShouldExecuteErr.Error()))
+            os.Exit(1)
 
         }
 

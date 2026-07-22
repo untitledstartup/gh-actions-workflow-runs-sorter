@@ -34,7 +34,7 @@ func ShouldExecute(runs []*github.WorkflowRun, runNumber int, workflowRunsToRetu
     shouldRunExecute := "false"
     shouldWaitForPastRun := "false"
     pastRunId := int64(0)
-	
+
     // loop through each run from this workflow:
     for _, run := range runs {
 
@@ -76,7 +76,7 @@ func ShouldExecute(runs []*github.WorkflowRun, runNumber int, workflowRunsToRetu
     // Q: when can it not be 20?
     // A: if this cli is used on a new repository that had fewer workflow run executions than 20
     //    or
-    //    if gh-action api has failed to return any runs for the workflow
+    //    if gh-action api has failed to return any runs for the workflow (after retries)
 
     // log warning if less than 20 runs were returned:
     switch runs_length := len(runs); {

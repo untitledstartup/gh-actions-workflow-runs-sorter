@@ -40,3 +40,18 @@ func retryableAPIFailure(res *github.Response, err error) bool {
 
     return res.StatusCode >= 500
 }
+
+// emptyWorkflowRuns reports whether a successful (HTTP 200) list-runs response
+// came back with no runs at all. GitHub's Actions API intermittently returns
+// 200 with an empty workflow_runs array for a workflow that provably has
+// history — an eventual-consistency glitch, most common right after a run is
+// triggered. For the serialization use case this is almost never a true "no
+// runs" state, so callers treat it as retryable rather than trusting it.
+func emptyWorkflowRuns(res *github.Response, err error, runs *github.WorkflowRuns) bool {
+
+    if err != nil || res == nil || res.StatusCode != 200 {
+        return false
+    }
+
+    return runs == nil || len(runs.WorkflowRuns) == 0
+}

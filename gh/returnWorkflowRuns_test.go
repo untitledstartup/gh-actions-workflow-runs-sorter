@@ -373,6 +373,107 @@ func TestReturnWorkflowRunsExhaustsRetriesOn5xx(t *testing.T) {
     }
 }
 
+func TestReturnWorkflowRunsRetriesOnEmptyList(t *testing.T) {
+
+    // supress logrus
+    log.SetOutput(ioutil.Discard)
+
+    // no backoff delay in tests
+    sleepBetweenRetries = func(context.Context, int) {}
+
+    client, mux, _, teardown := Setup()
+    defer teardown()
+
+    ctx := context.Background()
+
+    calls := 0
+
+    mux.HandleFunc("/repos/testowner/testrepo/actions/workflows/testfile.yaml/runs", func(w http.ResponseWriter, r *http.Request) {
+
+        TestingMethod(t, r, "GET")
+
+        calls++
+
+        // return an empty (but 200) list twice, then a populated list
+        if calls < 3 {
+            w.WriteHeader(http.StatusOK)
+            fmt.Fprint(w, `{"total_count":0,"workflow_runs":[]}`)
+            return
+        }
+
+        w.WriteHeader(http.StatusOK)
+        fmt.Fprint(w, `{"total_count":1,"workflow_runs":[
+            {
+                "id": 1111111111,
+                "name": "Test Workflow",
+                "node_id": "fakenode01",
+                "run_number": 1,
+                "event": "push",
+                "status": "completed",
+                "conclusion": "success",
+                "created_at": "2022-12-12T21:34:57Z",
+                "updated_at": "2022-12-12T21:47:06Z"
+            }
+        ]}`)
+    })
+
+    gotRuns, gotErr := ReturnWorkflowRuns("ft/test-branch", ctx, client, "testowner", "testrepo", "testfile.yaml", 20)
+
+    if gotErr != nil {
+        t.Errorf("ReturnWorkflowRuns() returned error '%v' - expected success after retries", gotErr)
+    }
+
+    if calls != 3 {
+        t.Errorf("expected 3 API calls (2 empty + 1 populated) but got %d", calls)
+    }
+
+    if len(gotRuns) != 1 {
+        t.Errorf("expected 1 run but received %d", len(gotRuns))
+    }
+}
+
+func TestReturnWorkflowRunsExhaustsRetriesOnEmptyList(t *testing.T) {
+
+    // supress logrus
+    log.SetOutput(ioutil.Discard)
+
+    // no backoff delay in tests
+    sleepBetweenRetries = func(context.Context, int) {}
+
+    client, mux, _, teardown := Setup()
+    defer teardown()
+
+    ctx := context.Background()
+
+    calls := 0
+
+    mux.HandleFunc("/repos/testowner/testrepo/actions/workflows/testfile.yaml/runs", func(w http.ResponseWriter, r *http.Request) {
+
+        TestingMethod(t, r, "GET")
+
+        calls++
+
+        w.WriteHeader(http.StatusOK)
+        fmt.Fprint(w, `{"total_count":0,"workflow_runs":[]}`)
+    })
+
+    gotRuns, gotErr := ReturnWorkflowRuns("ft/test-branch", ctx, client, "testowner", "testrepo", "testfile.yaml", 20)
+
+    // a persistently empty list is not itself an error here - it is returned
+    // empty for ShouldExecute to handle - but every attempt must be exhausted
+    if gotErr != nil {
+        t.Errorf("ReturnWorkflowRuns() returned error '%v' - expected empty result, not error", gotErr)
+    }
+
+    if calls != maxAttempts {
+        t.Errorf("expected %d API calls but got %d", maxAttempts, calls)
+    }
+
+    if len(gotRuns) != 0 {
+        t.Errorf("expected no runs but received %d", len(gotRuns))
+    }
+}
+
 func TestReturnWorkflowRunsDoesNotRetryOn404(t *testing.T) {
 
     // supress logrus
