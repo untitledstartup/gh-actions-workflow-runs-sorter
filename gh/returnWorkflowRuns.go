@@ -30,27 +30,49 @@ func ReturnWorkflowRuns(branchName string, ctx context.Context, client *github.C
     var res *github.Response
     var err error
 
-    // Retry transient failures (transport errors, 5xx) — a single GitHub API
-    // blip here otherwise aborts the whole shouldExecute decision.
+    // Retry transient failures — transport errors and 5xx, plus a 200 that
+    // comes back with an empty run list (a GitHub eventual-consistency glitch).
+    // A single blip here otherwise aborts the whole shouldExecute decision.
     for attempt := 1; attempt <= maxAttempts; attempt++ {
 
         runs, res, err = client.Actions.ListWorkflowRunsByFileName(ctx, owner, repo, workflowFile, opts)
 
-        if !retryableAPIFailure(res, err) {
-            break
+        if retryableAPIFailure(res, err) {
+
+            log.WithFields(log.Fields{
+                "attempt":      attempt,
+                "maxAttempts":  maxAttempts,
+                "repo":         repo,
+                "owner":        owner,
+                "workflowFile": workflowFile,
+            }).Warn("Transient GitHub API failure listing workflow runs ...")
+
+            if attempt < maxAttempts {
+                sleepBetweenRetries(ctx, attempt)
+            }
+
+            continue
         }
 
-        log.WithFields(log.Fields{
-            "attempt":      attempt,
-            "maxAttempts":  maxAttempts,
-            "repo":         repo,
-            "owner":        owner,
-            "workflowFile": workflowFile,
-        }).Warn("Transient GitHub API failure listing workflow runs ...")
+        if emptyWorkflowRuns(res, err, runs) {
 
-        if attempt < maxAttempts {
-            sleepBetweenRetries(ctx, attempt)
+            log.WithFields(log.Fields{
+                "attempt":      attempt,
+                "maxAttempts":  maxAttempts,
+                "repo":         repo,
+                "owner":        owner,
+                "workflowFile": workflowFile,
+            }).Warn("GitHub API returned an empty workflow run list - retrying ...")
+
+            if attempt < maxAttempts {
+                sleepBetweenRetries(ctx, attempt)
+            }
+
+            continue
         }
+
+        // definitive response (runs returned, or a permanent error) - stop
+        break
     }
 
     // transport error on every attempt — no HTTP response to inspect
